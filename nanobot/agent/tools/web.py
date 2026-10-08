@@ -824,15 +824,20 @@ class WebSearchTool(Tool):
         if not api_key:
             logger.warning("SERPER_API_KEY not set, falling back to DuckDuckGo")
             return await self._search_duckduckgo(query, n)
+        base_url = self.config.base_url or os.environ.get("SERPER_BASE_URL") or "https://google.serper.dev"
+        url = f"{base_url.rstrip('/')}/search"
+        is_valid, error_msg = _validate_url_safe(url)
+        if not is_valid:
+            return ToolResult.error(f"Error: Serper endpoint validation failed: {error_msg}")
         try:
             headers = {
                 "X-API-KEY": api_key,
                 "Content-Type": "application/json",
                 "User-Agent": self.user_agent,
             }
-            async with httpx.AsyncClient(proxy=self.proxy) as client:
+            async with httpx.AsyncClient(**_fetch_client_kwargs(self.proxy, float(self.config.timeout))) as client:
                 r = await client.post(
-                    "https://google.serper.dev/search",
+                    url,
                     headers=headers,
                     json={"q": query, "num": n},
                     timeout=float(self.config.timeout),
